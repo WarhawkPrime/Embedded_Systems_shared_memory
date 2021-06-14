@@ -19,7 +19,7 @@ int SensorConfiguration::initializeSensortag() {
     /* If there is a movement service on the device with the given UUID,
      * get it's characteristics, by UUID again */
 
-     std::cout <<  "Platzhalter Connect und Initialisierung Sensortag" << std::endl;
+     //std::cout <<  "Platzhalter Connect und Initialisierung Sensortag" << std::endl;
     return 0;
 }
 
@@ -27,6 +27,6 @@ int SensorConfiguration::initializeSensortag() {
 
 int SensorConfiguration::disconnectSensorTag() {
   // Disconnect from the device
-     std::cout <<  "Platzhalter Disconnect Sensortag" << std::endl;
+     //std::cout <<  "Platzhalter Disconnect Sensortag" << std::endl;
 return 0;
 }

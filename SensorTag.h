@@ -14,6 +14,9 @@ class SensorTag: public SensorConfiguration, private SensorCommunication {
       @return Return Motion_t with convertet values
       */
       Motion_t getMotion();
+
+      void get_rawData(char *rawData);
+
       /*
       Writes Config for SensorTag motion sensor
       @return 0 for success, -1 for failure

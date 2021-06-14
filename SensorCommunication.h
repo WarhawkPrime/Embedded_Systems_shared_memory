@@ -28,6 +28,8 @@ class SensorCommunication {
 
     unsigned int calcHex(char lowOrder, char highOrder);
 
+		void get_rawData(SensorConfiguration conf, char* rawData);
+
     float sensorMpu9250GyroConvert(int16_t data)
     {
       //-- calculate rotation, unit deg/s, range -250, +250

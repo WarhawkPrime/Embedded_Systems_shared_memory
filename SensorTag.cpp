@@ -16,6 +16,11 @@ Motion_t SensorTag::getMotion() {
 	return SensorCommunication::getMotion(*this);
 }
 
+
+void SensorTag::get_rawData(char* rawData) {
+	return SensorCommunication::get_rawData(*this, rawData);
+}
+
 void SensorTag::printMotion() {
 
 	Motion_t motion = this->getMotion();

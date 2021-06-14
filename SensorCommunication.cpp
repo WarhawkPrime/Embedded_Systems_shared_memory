@@ -20,10 +20,22 @@ Motion_t SensorCommunication::getMotion(SensorConfiguration conf) {
 	if (readMotion(conf, buffer) != 0) {
 		std::cerr << "can't read motion" << std::endl;
 	}
-	return convertMotion(buffer);
+return convertMotion(buffer);
 }
 
 
+ void SensorCommunication::get_rawData(SensorConfiguration conf, char* rawData) {
+	char buffer[MAX_BUF];
+	memset(buffer, 0, MAX_BUF);
+	if (readMotion(conf, buffer) != 0) {
+		std::cerr << "can't read motion" << std::endl;
+	}
+	for(int i = 0; i < MAX_BUF; ++i){
+
+		rawData[i] = buffer[i];
+	}
+	//return buffer;
+}
 
 Motion_t SensorCommunication::convertMotion(char* rawData) {
 	Motion_t motion;
@@ -98,7 +110,7 @@ Erwartetes Ergebnis:
 }
 
 int SensorCommunication::writeMotionConfig(SensorConfiguration conf){
-	std::cout << "Write Config Platzhalter" <<std::endl;
+	//std::cout << "Write Config Platzhalter" <<std::endl;
     /* Activate the motion measurements */
 return 0;
 }

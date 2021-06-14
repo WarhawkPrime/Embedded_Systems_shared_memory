@@ -51,11 +51,14 @@
 #include "IMessageHandler.h"
 
 #include <string.h>     // for memset
-
+#include "Motion.h"
 
 //======================================================================
 // FORWARD DECLARATIONS
 //======================================================================
+
+typedef struct PackedData PackedData_t;
+
 class IMessageHandler;
 
 
@@ -65,6 +68,13 @@ struct MostMessage
 	Int32 mType;					// siehe unten Enums   MOST size = 19 Byte, total 22
 	union {
 		unsigned char bytes[19];	/**< raw most data */
+
+		struct {
+			UInt16 id;
+			Motion_t motion;
+			UInt64 time;
+		} PackedData;
+
 		struct {
 			UInt8 FBlockID;
 			UInt8 Instance;
@@ -74,8 +84,6 @@ struct MostMessage
 			UInt8 data[12];
 		} rx_msg;
 	} data;
-
-
 };
 
 struct AppMessage					// total 64 Byte
