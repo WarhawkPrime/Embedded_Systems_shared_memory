@@ -60,7 +60,9 @@
 
 #include <sys/time.h>
 #include <errno.h>
-#include <pthread.h>                      // semaphore must be simulated
+#include <pthread.h>
+#include <iostream>
+                  // semaphore must be simulated
 class CBinarySemaphore {
 public:
 	/**

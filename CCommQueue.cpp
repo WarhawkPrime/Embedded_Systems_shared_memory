@@ -49,7 +49,6 @@ CCommQueue::CCommQueue(Int32 queueSize, CBinarySemaphore& sem) :
 	// now init the queue correctly
 	Int8* ptr = reinterpret_cast<Int8 *>(&mQueue[0]);
 	new (ptr) CMessage[queueSize];
-	std::cout << "created queue" << std::endl;
 }
 
 /**

@@ -126,6 +126,7 @@ bool CBinarySemaphore::take(bool waitForEver)
 		}
 		pthread_mutex_unlock(&mMutex);
 		return result;
+
 }
 
 /*

@@ -1,11 +1,3 @@
-/* ========== ========== ========== */
-/*
-Shared Memory muss im jedem Prozess einzeln im Speicher vereinbart werden
-
-
-*/
-/* ========== ========== ========== */
-
 #include <iostream>
 #include <stdlib.h>
 #include <unistd.h>
@@ -24,7 +16,10 @@ Shared Memory muss im jedem Prozess einzeln im Speicher vereinbart werden
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <new>
 
+#include <chrono>
+#include <ctime>
 
 using namespace std;
 
@@ -32,141 +27,174 @@ using namespace std;
 #define QUEUE_SIZE      1
 #define NUM_MESSAGES    10
 
-//===== own
-#define BUF_SIZE 1024
-
 struct PackedData {
 	Motion_t motion;
 	UInt64 time;
 };
 typedef struct PackedData PackedData_t;
 
+/* ========== own ========== */
+#define BUF_SIZE 1024
 void *addr;
+Int8 *que;
+
 CBinarySemaphore *binary_semaphore;
 CCommQueue *queue;
 
-int *glob_var;
+
+void init_shared_memory(){
+	shm_unlink(SHM_NAME);
+	// Create shared memory object and set its size to the size of our structure.
+
+	int fd = shm_open(SHM_NAME, O_CREAT | O_EXCL | O_RDWR, S_IRUSR | S_IWUSR);
+
+	if (fd == -1){
+		perror("shm_open");
+	}
+
+	if (int res = ftruncate(fd, BUF_SIZE)) {
+		perror("ftruncate");
+	}
+
+	// Map the object into the caller's address space.
+	addr = mmap(NULL, BUF_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+
+	if(addr == MAP_FAILED) {
+		perror("mmap");
+	}
+}
+
+
+PackedData_t create_Sensordata(){
+	SensorTag st;
+	st.initRead();
+	st.writeMovementConfig();
+	Motion_t motion = st.getMotion();
+
+	auto now = std::chrono::system_clock::now();
+	time_t tt = std::chrono::system_clock::to_time_t (now);
+	tt = static_cast<UInt64> (time(NULL));
+
+	PackedData_t pck;
+	pck.motion = motion;
+	pck.time = tt;
+	return pck;
+}
+
+const CMessage create_Message(){
+	PackedData_t pck = create_Sensordata();
+
+	CMessage msg;
+}
+
+/* ========== ========== ========== */
+
+
 
 int main()
 {
-
 		shm_unlink(SHM_NAME);
-		// Create shared memory object and set its size to the size of our structure.
-
 		int fd = shm_open(SHM_NAME, O_CREAT | O_EXCL | O_RDWR, S_IRUSR | S_IWUSR);
-
 		if (fd == -1){
 			perror("shm_open");
 		}
+
+		int size = CCommQueue::getNumOfBytesNeeded(1) + sizeof(CBinarySemaphore);
 
 		if (int res = ftruncate(fd, BUF_SIZE)) {
 			perror("ftruncate");
 		}
 
-		// Map the object into the caller's address space.
 		addr = mmap(NULL, BUF_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-
 		if(addr == MAP_FAILED) {
 			perror("mmap");
 		}
 
-
-	//binary_semaphore = new(addr) CBinarySemaphore();
-	//queue = new(addr + sizeof(binary_semaphore)) CCommQueue(QUEUE_SIZE, *binary_semaphore);
-	//binary_semaphore = new CBinarySemaphore();
-	//CMessage msg;
-	//queue->getMessage(msg);
-	//glob_var = (int) mmap(NULL, sizeof *glob_var, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
-	//*glob_var = 1;
+		binary_semaphore = new(addr) CBinarySemaphore();
+		queue = new(addr + sizeof(CBinarySemaphore)) CCommQueue(QUEUE_SIZE, *binary_semaphore);
 
 
+    cout << "Creating a child process ..." << endl;
+    pid_t pid = fork();
 
-	binary_semaphore = new(addr) CBinarySemaphore;
-	queue = new(addr + sizeof(binary_semaphore)) CCommQueue(QUEUE_SIZE, *binary_semaphore);
-	//glob_var = new(addr) int;
+		/* ========== CHILD ========== */
+    if (0 == pid)
+    {
+        // Child process - Reads all Messages from the Queue and outputs them with auxiliary data.
+				/* ========== ========== ========== */
 
+				//sleep(1);
 
-	//===== 1. fork =====
-	pid_t child_pid = fork();
+				//binary_semaphore = new(addr) CBinarySemaphore();
+				//CCommQueue *queues = reinterpret_cast<CCommQueue *> (addr + sizeof(CBinarySemaphore));
 
-	if (child_pid < 0) {
-		perror("fork() failed");
-		exit(EXIT_FAILURE);
-	} else if (child_pid == 0) {
+				binary_semaphore->take();
 
-		printf("from child: pid=%d, parent_pid=%d\n",(int)getpid(), (int)getppid());
+				CMessage msg;
+				std::cout << queue->getNumOfMessages() << std::endl;
+				for(int i = 0; i < NUM_MESSAGES; i++) {
 
-		/* ========== ========== ========== */
+					if(queue->getMessage(msg)){
+						std::cout << "a message exists" << std::endl;
+					}
 
-		//*glob_var = 5;
-		std::cout << queue->getNumOfMessages() << std::endl;
-
-		/* ========== ========== ========== */
-
-		//exit child
-		exit(42);
-	} else if (child_pid > 0) {
-		// Print message from parent process.
-		printf("from parent: pid=%d child_pid=%d\n",(int)getpid(), (int)child_pid);
-
-		/* ========== ========== ========== */
+				}
 
 
-		//binary_semaphore = new CBinarySemaphore();
-		//binary_semaphore->takeWithTimeOut(1000);
-		sleep(1);
-		std::cout << "var: " << *glob_var << std::endl;
-		munmap(glob_var, sizeof *glob_var);
+				/* ========== ========== ========== */
+				printf("from child: pid=%d, parent_pid=%d\n",(int)getpid(), (int)getppid());
+				exit(42);
+    }
+		/* ========== PARENT ========== */
+    else if (pid > 0)
+    {
+				//binary_semaphore->take();
+        // Parent process - Writes all Messages into the Queue
+				/* ========== ========== ========== */
+				PackedData_t pck = create_Sensordata();
+
+				for(int i = 0; i < NUM_MESSAGES; i++) {
+
+					const CMessage c_msg;
+					queue->add(c_msg);
+					std::cout << queue->getNumOfMessages() << std::endl;
+
+				}
 
 
 
-		MostMessage m_msg;
-		unsigned char data [19] = {42};
-		memcpy(m_msg.data.bytes, data, 19);
-		const CMessage *c_msg = new CMessage(m_msg);
 
-		if(!queue->add(*c_msg)){
-			perror("adding to queue failed");
-		}
+				binary_semaphore->give();
+
+				//sleep(1);
+
+				printf("from parent: pid=%d child_pid=%d\n",(int)getpid(), (int)pid);
+				/* ========== ========== ========== */
+				int status;
+			  pid_t waited_pid = waitpid(pid, &status, 0);
+
+				if (waited_pid < 0) {
+			    perror("waitpid() failed");
+			    exit(EXIT_FAILURE);
+				}
+				else if (waited_pid == pid) {
+					if (WIFEXITED(status)) {
+				    /* WIFEXITED(status) returns true if the child has terminated
+				     * normally. In this case WEXITSTATUS(status) returns child's
+				     * exit code.
+				     */
+				  	printf("from parent: child exited with code %d\n",WEXITSTATUS(status));
+				  }
+				}
+    }
+    else
+    {
+        // Error
+				perror("fork() failed");
+			  exit(EXIT_FAILURE);
+    }
 
 
-		//CMessage *sm(msg);
-		//sm->setSenderID( 1 );
-		//const CMessage *c_sm = sm;
-		//queue->add(*c_sm);
-
-		//std::cout << queue->getNumOfMessages() << std::endl;
-
-
-		/* ========== ========== ========== */
-
-		// Wait until child process exits or terminates.
-		int status;
-		pid_t waited_pid = waitpid(child_pid, &status, 0);
-
-		if (waited_pid < 0) {
-			perror("waitpid() failed");
-			exit(EXIT_FAILURE);
-		} else if (waited_pid == child_pid) {
-			if (WIFEXITED(status)) {
-
-			/* WIFEXITED(status) returns true if the child has terminated
-			 * normally. In this case WEXITSTATUS(status) returns child's
-			 * exit code.
-			 */
-
-			munmap(glob_var, sizeof *glob_var);
-			printf("from parent: child exited with code %d\n",WEXITSTATUS(status));
-			}
-		}
-	 }
-
-	// Unlink shared Memory
-
-	//binary_semaphore->~CBinarySemaphore();
-	//queue->~CCommQueue();
-
-	//fd = shm_unlink(SHM_NAME);
-	shm_unlink(SHM_NAME);
-	return 0;
+		shm_unlink(SHM_NAME);
+    return 0;
 }
