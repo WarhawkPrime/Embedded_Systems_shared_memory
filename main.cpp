@@ -99,9 +99,9 @@ int main()
 			perror("shm_open");
 		}
 
-		int size = CCommQueue::getNumOfBytesNeeded(1) + sizeof(CBinarySemaphore);
+		int size = CCommQueue::getNumOfBytesNeeded(NUM_MESSAGES) + sizeof(CBinarySemaphore);
 
-		if (int res = ftruncate(fd, BUF_SIZE)) {
+		if (int res = ftruncate(fd, size)) {
 			perror("ftruncate");
 		}
 
@@ -128,10 +128,11 @@ int main()
 				//binary_semaphore = new(addr) CBinarySemaphore();
 				//CCommQueue *queues = reinterpret_cast<CCommQueue *> (addr + sizeof(CBinarySemaphore));
 
-				binary_semaphore->take();
+				//binary_semaphore->take();
 
 				CMessage msg;
 				std::cout << queue->getNumOfMessages() << std::endl;
+
 				for(int i = 0; i < NUM_MESSAGES; i++) {
 
 					if(queue->getMessage(msg)){
@@ -151,7 +152,7 @@ int main()
 				//binary_semaphore->take();
         // Parent process - Writes all Messages into the Queue
 				/* ========== ========== ========== */
-				PackedData_t pck = create_Sensordata();
+				//PackedData_t pck = create_Sensordata();
 
 				for(int i = 0; i < NUM_MESSAGES; i++) {
 
@@ -161,10 +162,7 @@ int main()
 
 				}
 
-
-
-
-				binary_semaphore->give();
+				//binary_semaphore->give();
 
 				//sleep(1);
 
