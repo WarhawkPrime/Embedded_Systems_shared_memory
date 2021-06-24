@@ -39,6 +39,8 @@ typedef struct PackedData PackedData_t;
 void *addr;
 Int8 *que;
 
+//static int *global_finished;
+
 CBinarySemaphore *binary_semaphore;
 CCommQueue *queue;
 
@@ -47,7 +49,9 @@ PackedData_t create_Sensordata(int id){
 	SensorTag st;
 	st.initRead();
 	st.writeMovementConfig();
+
 	Motion_t motion = st.getMotion();
+
 
 	auto now = std::chrono::system_clock::now();
 	//time_t rt = std::chrono::system_clock::to_time_t (updated);
@@ -55,15 +59,20 @@ PackedData_t create_Sensordata(int id){
 	auto value = now_ms.time_since_epoch();
 	long duration = value.count();
 
+
+
 	PackedData_t pck;
 	pck.id = id;
 	pck.motion = motion;
 	pck.time = duration;
 	return pck;
+
 }
 
 
-const CMessage create_Message(int id){
+MostMessage create_Message(int id){
+
+	create_Sensordata(id);
 
 	PackedData_t pck = create_Sensordata(id);
 
@@ -72,11 +81,8 @@ const CMessage create_Message(int id){
 	msg.data.PackedData.id = pck.id;
 	msg.data.PackedData.motion = pck.motion;
 	msg.data.PackedData.time = pck.time;
-	//msg.data.bytes[0] = mt.gyro.x;
-	//std::cout << msg.data.bytes[0] << std::endl;
 
-	const CMessage c_msg(msg);
-	return c_msg;
+	return msg;
 }
 
 /* ========== ========== ========== */
@@ -91,7 +97,7 @@ int main()
 			perror("shm_open");
 		}
 
-		int size = CCommQueue::getNumOfBytesNeeded(NUM_MESSAGES) + sizeof(CBinarySemaphore);
+		int size = CCommQueue::getNumOfBytesNeeded(QUEUE_SIZE) + sizeof(CBinarySemaphore) + sizeof(CBinarySemaphore)+ sizeof(long);
 
 		if (int res = ftruncate(fd, size)) {
 			perror("ftruncate");
@@ -103,8 +109,13 @@ int main()
 		}
 
 		binary_semaphore = new(addr) CBinarySemaphore();
-		queue = new(addr + sizeof(CBinarySemaphore)) CCommQueue(QUEUE_SIZE, *binary_semaphore);
+		CBinarySemaphore c_sem;
+		queue = new(addr + sizeof(c_sem)) CCommQueue(QUEUE_SIZE, c_sem);
 
+		global_finished = new(addr + sizeof(c_sem) + sizeof(queue)) int;
+
+		//*global_finished = 1;
+		//std::cout << "finished: " << *global_finished << std::endl;
 
     cout << "Creating a child process ..." << endl;
     pid_t pid = fork();
@@ -114,49 +125,56 @@ int main()
     {
         // Child process - Reads all Messages from the Queue and outputs them with auxiliary data.
 				/* ========== ========== ========== */
-				//sleep(1);
 				long mean_time = 0;
+				int counter = 0;
 
+				while(true) {
 
-				for(int i = 0; i < NUM_MESSAGES; i++) {
+					//std::cout << "waiting for access on child .... " << std::endl;
+
+					binary_semaphore->take();  // wait for signal
+
 					CMessage msg;
-					binary_semaphore->take();
-					if(queue->getMessage(msg)) {
+					//std::cout << "getMessage on child .... " << std::endl;
+					if(queue->getMessage(msg)){
 
-						//new now time
+						counter++;
+						const MostMessage* mmsg = msg.getMostMessage();
+
 						auto now = std::chrono::system_clock::now();
-						//time_t rt = std::chrono::system_clock::to_time_t (updated);
 						auto now_ms = std::chrono::time_point_cast<std::chrono::nanoseconds>(now);
 						auto value = now_ms.time_since_epoch();
     				long received_time = value.count();
 
-						const MostMessage* mmsg = msg.getMostMessage();
-
 						UInt64 send_time = mmsg->data.PackedData.time;
-
 						long duration = received_time - send_time;
-
 						mean_time += duration;
 
 						//Ausgaben:
-						//std::cout << std::endl;
+						std::cout << std::endl;
 						//std::cout << "a message exists" << std::endl;
-						//std::cout << "Message Number: " << mmsg->data.PackedData.id << std::endl;
-						//std::cout << "Message send: " << send_time  << " ns"<< std::endl;
-						//std::cout << "Message received: " << received_time << " ns"<< std::endl;
-						//std::cout << "Send time: " << duration << " ns"<< std::endl;
-						//std::cout << "GyroX: " << mmsg->data.PackedData.motion.gyro.x << std::endl;
-						//std::cout << "GyroX: " << mmsg->data.PackedData.motion.gyro.y << std::endl;
-						//std::cout << "GyroX: " << mmsg->data.PackedData.motion.gyro.z << std::endl;
-						//std::cout << "GyroX: " << mmsg->data.PackedData.motion.acc.x << std::endl;
-						//std::cout << "GyroX: " << mmsg->data.PackedData.motion.acc.y << std::endl;
-						//std::cout << "GyroX: " << mmsg->data.PackedData.motion.acc.z << std::endl;
+						std::cout << "Message Number: " << mmsg->data.PackedData.id << std::endl;
+						std::cout << "Message send: " << send_time  << " ns"<< std::endl;
+						std::cout << "Message received: " << received_time << " ns"<< std::endl;
+						std::cout << "Send time: " << duration << " ns"<< std::endl;
+						std::cout << "GyroX: " << mmsg->data.PackedData.motion.gyro.x << std::endl;
+						std::cout << "GyroY: " << mmsg->data.PackedData.motion.gyro.y << std::endl;
+						std::cout << "GyroZ: " << mmsg->data.PackedData.motion.gyro.z << std::endl;
+						std::cout << "AccX: " << mmsg->data.PackedData.motion.acc.x << std::endl;
+						std::cout << "AccY: " << mmsg->data.PackedData.motion.acc.y << std::endl;
+						std::cout << "AccZ: " << mmsg->data.PackedData.motion.acc.z << std::endl;
+
+						binary_semaphore->give();
+
+						if(counter == NUM_MESSAGES)
+							break;
 					}
 				}
 
-				//std::cout << std::endl;
+				std::cout << std::endl;
 				mean_time = mean_time / NUM_MESSAGES;
 				std::cout << "Mean Time: " << mean_time << " ns" << std::endl;
+				//std::cout << "finished: " << *global_finished << std::endl;
 
 				/* ========== ========== ========== */
 				printf("from child: pid=%d, parent_pid=%d\n",(int)getpid(), (int)getppid());
@@ -166,12 +184,35 @@ int main()
     else if (pid > 0)
     {
 
-				for(int i = 0; i < NUM_MESSAGES; i++) {
+				int counter = 0;
+				while(true) {
 
-					const CMessage c_msg = create_Message(i);
-					queue->add(c_msg);
-					binary_semaphore->give();
+					if(counter < NUM_MESSAGES) {
+						MostMessage mmsg = create_Message(counter);
+						const CMessage c_msg(mmsg);
+
+						queue->add(c_msg);
+						binary_semaphore->give();
+						counter++;
+						//std::cout << "message created and send: " << counter << std::endl;
+						binary_semaphore->give();
+					}
+					else {
+						break;
+					}
+
+					/*
+					else if(counter == NUM_MESSAGES + (2*QUEUE_SIZE)) {
+						break;
+					}
+					else {
+						binary_semaphore->give();
+						counter++;
+					}
+					*/
 				}
+
+
 
 
 				printf("from parent: pid=%d child_pid=%d\n",(int)getpid(), (int)pid);
